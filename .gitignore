@@ -1,0 +1,23 @@
+# .NET build output
+[Bb]in/
+[Oo]bj/
+artifacts/
+[Tt]est[Rr]esults/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Local configuration
+appsettings.Development.json
+*.local.json
+
+# Never commit real credentials or private keys
+*.pfx
+*.p12
+*.pem
+.env
+.env.*
