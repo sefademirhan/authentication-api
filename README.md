@@ -1,46 +1,72 @@
 # Authentication API
 
-A learning-focused authentication REST API built with C#, ASP.NET Core 8, Entity Framework Core, SQL Server, BCrypt password hashing, and JWT bearer tokens.
+[![.NET build](https://github.com/sefademirhan/authentication-api/actions/workflows/dotnet.yml/badge.svg)](https://github.com/sefademirhan/authentication-api/actions/workflows/dotnet.yml)
+
+An educational **ASP.NET Core 8 authentication REST API** with **JWT**, **BCrypt password hashes**, **Entity Framework Core**, and **SQL Server**.
 
 ## Features
-- User registration and login
-- Passwords stored as BCrypt hashes, never plain text
-- JWT access tokens with issuer, audience, signature, and lifetime validation
-- Protected `GET /api/auth/me` endpoint
-- Duplicate email prevention
+- Register a user
+- Sign in and receive a 30-minute JWT access token
+- Retrieve the authenticated user's basic profile
+- Hash passwords with BCrypt; never store plaintext passwords
+- Prevent duplicate email accounts
 
 ## Requirements
-- .NET 8 SDK
-- SQL Server LocalDB or another SQL Server instance
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- SQL Server Express LocalDB or another SQL Server instance
+- Windows PowerShell
 
-## Configure local JWT secrets
-Do not commit signing keys or credentials. From the repository root, set a development key using .NET User Secrets:
+## 1. Configure JWT secrets locally
+Extract the ZIP and open PowerShell in the folder containing this README. **Do not put private keys in GitHub.** The project already includes a `UserSecretsId`.
+
+The following commands work in Windows PowerShell, including 5.1:
 
 ```powershell
-dotnet user-secrets init --project src/AuthenticationApi/AuthenticationApi.csproj
 $bytes = New-Object byte[] 48
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
 $key = [Convert]::ToBase64String($bytes)
 dotnet user-secrets set "Jwt:Key" $key --project src/AuthenticationApi/AuthenticationApi.csproj
-dotnet user-secrets set "Jwt:Issuer" "AuthenticationApi" --project src/AuthenticationApi/AuthenticationApi.csproj
-dotnet user-secrets set "Jwt:Audience" "AuthenticationApiClient" --project src/AuthenticationApi/AuthenticationApi.csproj
 ```
 
-## Create database and run
+The issuer and audience are already specified in `appsettings.json`. You can override them via User Secrets. If the JWT key is missing or too short, the application intentionally refuses to start.
+
+## 2. Create database and run
 ```powershell
 dotnet restore src/AuthenticationApi/AuthenticationApi.csproj
-dotnet tool install --global dotnet-ef
+dotnet tool install --global dotnet-ef --version 8.0.11
 dotnet ef migrations add InitialCreate --project src/AuthenticationApi/AuthenticationApi.csproj
 dotnet ef database update --project src/AuthenticationApi/AuthenticationApi.csproj
-dotnet run --project src/AuthenticationApi/AuthenticationApi.csproj
+dotnet run --project src/AuthenticationApi/AuthenticationApi.csproj --launch-profile http
 ```
 
-Open the Swagger URL printed in the terminal. Update the `AuthDatabase` connection string if using another SQL Server instance.
+Open **http://localhost:5072/swagger**. If `dotnet-ef` already exists, update it with `dotnet tool update --global dotnet-ef --version 8.0.11`.
+
+If your SQL Server is not LocalDB, update `AuthDatabase` in `src/AuthenticationApi/appsettings.json`.
 
 ## Endpoints
-- `POST /api/auth/register` — JSON: `{ "email": "person@example.com", "password": "a-long-password-here" }`
-- `POST /api/auth/login` — returns a JWT access token
-- `GET /api/auth/me` — requires `Authorization: Bearer <token>`
+| Method | URL | Description |
+| --- | --- | --- |
+| POST | `/api/auth/register` | Create account |
+| POST | `/api/auth/login` | Receive a JWT token |
+| GET | `/api/auth/me` | Authenticated profile |
 
-## Security notes
-This is a portfolio starter, not production-ready authentication. Before production use, add rate limiting, email verification, password reset, refresh-token rotation/revocation, audit logging, and security tests. Keep JWT keys and database credentials out of source control.
+**Registration**
+```json
+{
+  "email": "demo@example.com",
+  "password": "change-this-password-123"
+}
+```
+
+Use the same email and password to log in. For `/api/auth/me`, include the returned token in the `Authorization: Bearer <token>` header. For this local learning project, the launch profile uses HTTP; use HTTPS for real network deployments and never send real credentials over untrusted HTTP connections.
+
+## Security roadmap
+- [x] Password hashing
+- [x] Signed and validated JWT tokens
+- [x] Protected user endpoint
+- [x] GitHub Actions build checks
+- [ ] Rate limiting and account lockout
+- [ ] Email verification, password reset and refresh tokens
+- [ ] Security and integration tests
+
+> **Not production-ready.** This starter intentionally omits several protections needed for real user accounts.
