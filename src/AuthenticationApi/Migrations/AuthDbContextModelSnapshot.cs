@@ -49,6 +49,35 @@ namespace AuthenticationApi.Migrations
 
                     b.ToTable("Users");
                 });
+
+            modelBuilder.Entity("AuthenticationApi.Models.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("datetime2");
+                    b.Property<DateTime>("ExpiresAtUtc").HasColumnType("datetime2");
+                    b.Property<DateTime?>("RevokedAtUtc").HasColumnType("datetime2");
+                    b.Property<string>("TokenHash")
+                        .IsRequired().HasMaxLength(64).HasColumnType("nvarchar(64)");
+                    b.Property<int>("UserId").HasColumnType("int");
+
+                    b.HasKey("Id");
+                    b.HasIndex("TokenHash").IsUnique();
+                    b.HasIndex("UserId");
+                    b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("AuthenticationApi.Models.RefreshToken", b =>
+                {
+                    b.HasOne("AuthenticationApi.Models.AppUser", "User")
+                        .WithMany().HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("User");
+                });
+
 #pragma warning restore 612, 618
         }
     }
