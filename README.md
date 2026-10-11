@@ -33,15 +33,20 @@ The issuer and audience are already specified in `appsettings.json`. You can ove
 ## 2. Create database and run
 ```powershell
 dotnet restore src/AuthenticationApi/AuthenticationApi.csproj
-dotnet tool install --global dotnet-ef --version 8.0.11
-dotnet ef migrations add InitialCreate --project src/AuthenticationApi/AuthenticationApi.csproj
-dotnet ef database update --project src/AuthenticationApi/AuthenticationApi.csproj
+dotnet tool restore
+dotnet tool run dotnet-ef database update --project src/AuthenticationApi/AuthenticationApi.csproj
 dotnet run --project src/AuthenticationApi/AuthenticationApi.csproj --launch-profile http
 ```
 
-Open **http://localhost:5072/swagger**. If `dotnet-ef` already exists, update it with `dotnet tool update --global dotnet-ef --version 8.0.11`.
+Open **http://localhost:5072/swagger**. The `InitialCreate` migration is already committed; **do not run `migrations add InitialCreate` again**. The repository-local `dotnet-ef` 8.0.11 tool works independently of any newer global installation.
 
-If your SQL Server is not LocalDB, update `AuthDatabase` in `src/AuthenticationApi/appsettings.json`.
+The default database connection uses `(localdb)\\MSSQLLocalDB`. If you're using a custom LocalDB instance such as `StockDemo`, run this in the **same PowerShell window** before database update and app startup:
+
+```powershell
+$env:ConnectionStrings__AuthDatabase = 'Server=(localdb)\StockDemo;Database=AuthenticationApiDb;Integrated Security=True;TrustServerCertificate=True;'
+```
+
+For another SQL Server, override `AuthDatabase` with an appropriate connection string instead. Keep passwords and signing secrets out of GitHub.
 
 ## Endpoints
 | Method | URL | Description |
