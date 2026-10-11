@@ -25,3 +25,17 @@ jobs:
         run: dotnet restore tests/AuthenticationApi.Tests/AuthenticationApi.Tests.csproj
       - name: Run authentication API integration tests
         run: dotnet test tests/AuthenticationApi.Tests/AuthenticationApi.Tests.csproj -c Release --no-restore
+
+      - name: Restore project-local Entity Framework tool
+        run: dotnet tool restore
+      - name: Verify migration discovery and SQL generation
+        run: |
+          dotnet tool run dotnet-ef migrations list --project src/AuthenticationApi/AuthenticationApi.csproj --no-connect > migrations.txt
+          cat migrations.txt
+          grep -q "AddRefreshTokens" migrations.txt
+          dotnet tool run dotnet-ef migrations script --project src/AuthenticationApi/AuthenticationApi.csproj --idempotent --output migrations.sql
+          test -s migrations.sql
+        env:
+          Jwt__Key: 'a-test-only-github-actions-key-not-for-real-users-123456789'
+          Jwt__Issuer: 'AuthenticationApi'
+          Jwt__Audience: 'AuthenticationApiClient'
