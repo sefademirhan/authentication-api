@@ -91,6 +91,16 @@ public class AuthApiTests
     {
         private readonly SqliteConnection connection = new("Data Source=:memory:");
 
+        public ApiFactory()
+        {
+            // WebApplication.CreateBuilder reads configuration before post-startup test overrides.
+            // A fixed TEST-ONLY key is set before the application host is constructed.
+            Environment.SetEnvironmentVariable(
+                "Jwt__Key", "very-long-dev-only-key-for-running-tests-123456789");
+            Environment.SetEnvironmentVariable("Jwt__Issuer", "AuthenticationApi");
+            Environment.SetEnvironmentVariable("Jwt__Audience", "AuthenticationApiClient");
+        }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             connection.Open();
