@@ -1,25 +1,30 @@
 # Authentication API
 
-[![.NET build](https://github.com/sefademirhan/authentication-api/actions/workflows/dotnet.yml/badge.svg)](https://github.com/sefademirhan/authentication-api/actions/workflows/dotnet.yml)
+[![.NET build and tests](https://github.com/sefademirhan/authentication-api/actions/workflows/dotnet.yml/badge.svg)](https://github.com/sefademirhan/authentication-api/actions/workflows/dotnet.yml)
 
-An educational **ASP.NET Core 8 authentication REST API** with **JWT**, **BCrypt password hashes**, **Entity Framework Core**, and **SQL Server**.
+A learning-focused **ASP.NET Core 8** authentication REST API with SQL Server, BCrypt password hashing, **JWT access tokens**, **rotating refresh tokens**, and IP-based rate limiting.
 
 ## Features
-- Register a user
-- Sign in and receive a 30-minute JWT access token
-- Retrieve the authenticated user's basic profile
-- Hash passwords with BCrypt; never store plaintext passwords
-- Prevent duplicate email accounts
 
-## Requirements
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- SQL Server Express LocalDB or another SQL Server instance
-- Windows PowerShell
+- Register a user with an email and 12–128 character password
+- Store only BCrypt password hashes
+- Sign in with email/password; receive a 30-minute JWT access token and 7-day refresh token
+- Renew the access token with `POST /api/auth/refresh`; the previous refresh token immediately becomes unusable
+- Revoke a refresh token with `POST /api/auth/logout`
+- View a protected profile via `GET /api/auth/me`
+- Validate JWT signing key, issuer, audience and expiration
+- Limit registration, login and refresh requests to **6 attempts per minute per client IP** (in memory)
+- Store SHA-256 hashes of refresh tokens, not raw credentials
+- Swagger Bearer authorization control on the protected endpoint
+- Automated API integration tests against SQLite in-memory databases
 
-## 1. Configure JWT secrets locally
-Extract the ZIP and open PowerShell in the folder containing this README. **Do not put private keys in GitHub.** The project already includes a `UserSecretsId`.
+## Windows setup
 
-The following commands work in Windows PowerShell, including 5.1:
+Requirements: [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), SQL Server Express LocalDB.
+
+Extract the ZIP and open PowerShell in the directory with `README.md`.
+
+### 1. Configure a JWT signing key (once per computer)
 
 ```powershell
 $bytes = New-Object byte[] 48
@@ -28,9 +33,20 @@ $key = [Convert]::ToBase64String($bytes)
 dotnet user-secrets set "Jwt:Key" $key --project src/AuthenticationApi/AuthenticationApi.csproj
 ```
 
-The issuer and audience are already specified in `appsettings.json`. You can override them via User Secrets. If the JWT key is missing or too short, the application intentionally refuses to start.
+The value is stored outside the source repository using .NET User Secrets. **Never commit keys, access tokens or real passwords.** `Jwt:Issuer` and `Jwt:Audience` are configured in `appsettings.json`.
 
-## 2. Create database and run
+### 2. Point to your SQL Server LocalDB instance
+
+The default SQL connection is `(localdb)\\MSSQLLocalDB`. If you are using the working `StockDemo` instance, use:
+
+```powershell
+$env:ConnectionStrings__AuthDatabase = 'Server=(localdb)\StockDemo;Database=AuthenticationApiDb;Integrated Security=True;TrustServerCertificate=True;'
+```
+
+Keep the **same** PowerShell window open for the following commands.
+
+### 3. Apply database migrations and start the API
+
 ```powershell
 dotnet restore src/AuthenticationApi/AuthenticationApi.csproj
 dotnet tool restore
@@ -38,40 +54,53 @@ dotnet tool run dotnet-ef database update --project src/AuthenticationApi/Authen
 dotnet run --project src/AuthenticationApi/AuthenticationApi.csproj --launch-profile http
 ```
 
-Open **http://localhost:5072/swagger**. The `InitialCreate` migration is already committed; **do not run `migrations add InitialCreate` again**. The repository-local `dotnet-ef` 8.0.11 tool works independently of any newer global installation.
+The migrations `InitialCreate` and `AddRefreshTokens` are **already committed**. Do **not** generate `InitialCreate` again. `database update` only applies pending changes, keeping your existing accounts.
 
-The default database connection uses `(localdb)\\MSSQLLocalDB`. If you're using a custom LocalDB instance such as `StockDemo`, run this in the **same PowerShell window** before database update and app startup:
+Open **http://localhost:5072/swagger** while the API is running.
 
-```powershell
-$env:ConnectionStrings__AuthDatabase = 'Server=(localdb)\StockDemo;Database=AuthenticationApiDb;Integrated Security=True;TrustServerCertificate=True;'
-```
+## Demo workflow
 
-For another SQL Server, override `AuthDatabase` with an appropriate connection string instead. Keep passwords and signing secrets out of GitHub.
+1. `POST /api/auth/register` with a test email and password.
+2. `POST /api/auth/login` with the same credentials. Copy the `accessToken` for protected API requests.
+3. In Swagger, click **Authorize**, paste the access token, and use `GET /api/auth/me`.
+4. `POST /api/auth/refresh` with the `refreshToken` to issue new tokens.
+5. `POST /api/auth/logout` with the **latest** refresh token to revoke further renewals.
 
-## Endpoints
-| Method | URL | Description |
-| --- | --- | --- |
-| POST | `/api/auth/register` | Create account |
-| POST | `/api/auth/login` | Receive a JWT token |
-| GET | `/api/auth/me` | Authenticated profile |
+Example request body for registration:
 
-**Registration**
 ```json
 {
   "email": "demo@example.com",
-  "password": "change-this-password-123"
+  "password": "ExamplePassword12345!"
 }
 ```
 
-Use the same email and password to log in. For `/api/auth/me`, include the returned token in the `Authorization: Bearer <token>` header. For this local learning project, the launch profile uses HTTP; use HTTPS for real network deployments and never send real credentials over untrusted HTTP connections.
+Refresh and logout both accept:
 
-## Security roadmap
-- [x] Password hashing
-- [x] Signed and validated JWT tokens
-- [x] Protected user endpoint
-- [x] GitHub Actions build checks
-- [ ] Rate limiting and account lockout
-- [ ] Email verification, password reset and refresh tokens
-- [ ] Security and integration tests
+```json
+{ "refreshToken": "paste-the-current-refresh-token-here" }
+```
 
-> **Not production-ready.** This starter intentionally omits several protections needed for real user accounts.
+### Endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/api/auth/register` | Create a user |
+| POST | `/api/auth/login` | Receive access and refresh tokens |
+| POST | `/api/auth/refresh` | Rotate refresh token and renew JWT |
+| POST | `/api/auth/logout` | Revoke a refresh token |
+| GET | `/api/auth/me` | Return authenticated profile (Bearer JWT) |
+
+## Automated tests
+
+```powershell
+dotnet test tests/AuthenticationApi.Tests/AuthenticationApi.Tests.csproj
+```
+
+Integration tests cover registration, login, protected routes, refresh rotation, logout and invalid signup. Tests use a disposable SQLite database in memory (your SQL Server data is untouched).
+
+## Security notes and remaining production requirements
+
+This is an **educational API, not a ready-to-deploy identity provider**. Rate limits are kept in process memory, so they reset on application restart and are not distributed. Access JWTs are valid for up to 30 minutes even after refresh-token logout; JWT revocation would require additional infrastructure or shorter access token lifetimes. Email verification, password reset via email, multi-factor authentication, security logs, centralized rate limits, device/session management, backup procedures and production monitoring require additional services and operational setup.
+
+The local demo uses HTTP on localhost; **production deployments require HTTPS** and careful management of keys and tokens.
